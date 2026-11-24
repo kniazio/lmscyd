@@ -1,0 +1,48 @@
+name: Build LMS CYD
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Pobierz projekt
+        uses: actions/checkout@v4
+
+      - name: Zainstaluj Pythona
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Zainstaluj PlatformIO
+        run: pip install platformio
+
+      - name: Przygotuj przykladowa konfiguracje
+        run: cp data/config.json.example data/config.json
+
+      - name: Kompiluj firmware
+        run: pio run -e esp32-cyd
+
+      - name: Zbuduj system plikow
+        run: pio run -e esp32-cyd -t buildfs
+
+      - name: Zbierz pliki
+        run: |
+          mkdir -p gotowe
+          cp .pio/build/esp32-cyd/firmware.bin gotowe/
+          cp .pio/build/esp32-cyd/bootloader.bin gotowe/
+          cp .pio/build/esp32-cyd/partitions.bin gotowe/
+          cp .pio/build/esp32-cyd/littlefs.bin gotowe/
+          find "$HOME/.platformio/packages" -name boot_app0.bin -path '*framework-arduinoespressif32*' -print -quit | xargs -r -I {} cp "{}" gotowe/boot_app0.bin
+          test -f gotowe/boot_app0.bin
+
+      - name: Udostepnij pliki do pobrania
+        uses: actions/upload-artifact@v4
+        with:
+          name: lmscyd-firmware
+          path: gotowe/
